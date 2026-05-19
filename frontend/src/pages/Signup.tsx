@@ -16,7 +16,7 @@ export function Signup() {
     try {
       const { token } = await api.signup(email, password);
       setToken(token);
-      navigate('/');
+      navigate('/todos');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'sign up failed');
     } finally {

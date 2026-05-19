@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { pool } from '../db';
+import { authMiddleware, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 const BCRYPT_ROUNDS = 10;
@@ -62,6 +63,18 @@ router.post('/signin', async (req, res) => {
   } catch (e) {
     console.error('signin error', e);
     res.status(500).json({ error: 'signin failed' });
+  }
+});
+
+router.get('/me', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const result = await pool.query('SELECT id, email FROM users WHERE id = $1', [req.userId]);
+    const user = result.rows[0];
+    if (!user) return res.status(404).json({ error: 'user not found' });
+    res.json(user);
+  } catch (e) {
+    console.error('get current user error', e);
+    res.status(500).json({ error: 'failed to load user' });
   }
 });
 

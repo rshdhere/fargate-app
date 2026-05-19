@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, clearToken, Todo } from '../lib/api';
+import { AppShell } from '../components/AppShell';
 
 export function Todos() {
   const navigate = useNavigate();
@@ -53,51 +54,39 @@ export function Todos() {
     }
   }
 
-  function onLogout() {
-    clearToken();
-    navigate('/signin');
-  }
-
   return (
-    <div className="container">
-      <div className="card">
-        <div className="header">
-          <h1 style={{ margin: 0 }}>Todos</h1>
-          <button onClick={onLogout}>Sign out</button>
-        </div>
+    <AppShell title="Todos">
+      <form onSubmit={onCreate}>
+        <input
+          type="text"
+          placeholder="what needs doing?"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          maxLength={500}
+        />
+        <button type="submit" disabled={!title.trim()}>
+          Add
+        </button>
+      </form>
 
-        <form onSubmit={onCreate}>
-          <input
-            type="text"
-            placeholder="what needs doing?"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            maxLength={500}
-          />
-          <button type="submit" disabled={!title.trim()}>
-            Add
-          </button>
-        </form>
+      {error && <div className="error" style={{ marginTop: '1rem' }}>{error}</div>}
 
-        {error && <div className="error" style={{ marginTop: '1rem' }}>{error}</div>}
-
-        <div style={{ marginTop: '1.5rem' }}>
-          {loading ? (
-            <p className="muted">Loading…</p>
-          ) : todos.length === 0 ? (
-            <p className="muted">No todos yet.</p>
-          ) : (
-            todos.map((todo) => (
-              <div key={todo.id} className="row">
-                <span>{todo.title}</span>
-                <button onClick={() => onDelete(todo.id)} aria-label={`Delete ${todo.title}`}>
-                  Delete
-                </button>
-              </div>
-            ))
-          )}
-        </div>
+      <div style={{ marginTop: '1.5rem' }}>
+        {loading ? (
+          <p className="muted">Loading…</p>
+        ) : todos.length === 0 ? (
+          <p className="muted">No todos yet.</p>
+        ) : (
+          todos.map((todo) => (
+            <div key={todo.id} className="row">
+              <span>{todo.title}</span>
+              <button onClick={() => onDelete(todo.id)} aria-label={`Delete ${todo.title}`}>
+                Delete
+              </button>
+            </div>
+          ))
+        )}
       </div>
-    </div>
+    </AppShell>
   );
 }

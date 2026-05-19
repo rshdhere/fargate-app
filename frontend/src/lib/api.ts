@@ -68,6 +68,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
+  getCurrentUser: () => request<User>('/auth/me'),
   listTodos: () => request<Todo[]>('/todos'),
   createTodo: (title: string) =>
     request<Todo>('/todos', {

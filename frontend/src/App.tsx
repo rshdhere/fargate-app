@@ -3,6 +3,7 @@ import { ReactNode } from 'react';
 import { Signin } from './pages/Signin';
 import { Signup } from './pages/Signup';
 import { Todos } from './pages/Todos';
+import { Profile } from './pages/Profile';
 import { getToken } from './lib/api';
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -10,7 +11,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
 }
 
 function RedirectIfAuthed({ children }: { children: ReactNode }) {
-  return getToken() ? <Navigate to="/" replace /> : <>{children}</>;
+  return getToken() ? <Navigate to="/todos" replace /> : <>{children}</>;
 }
 
 export default function App() {
@@ -34,9 +35,21 @@ export default function App() {
       />
       <Route
         path="/"
+        element={<Navigate to="/todos" replace />}
+      />
+      <Route
+        path="/todos"
         element={
           <RequireAuth>
             <Todos />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <RequireAuth>
+            <Profile />
           </RequireAuth>
         }
       />
