@@ -1,22 +1,27 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api, setToken } from '../lib/api';
+import { api } from '../lib/api';
 
 export function Signup() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setSuccess(null);
     setLoading(true);
     try {
-      const { token } = await api.signup(email, password);
-      setToken(token);
-      navigate('/todos');
+      const response = await api.signup(email, password);
+      setSuccess(response.message);
+      navigate('/signin', {
+        replace: true,
+        state: { message: response.message, email },
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'sign up failed');
     } finally {
@@ -46,6 +51,7 @@ export function Signup() {
             minLength={6}
             autoComplete="new-password"
           />
+          {success && <div className="muted">{success}</div>}
           {error && <div className="error">{error}</div>}
           <button type="submit" disabled={loading}>
             {loading ? 'Creating…' : 'Sign up'}

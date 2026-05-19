@@ -7,7 +7,7 @@ Full-stack todo app — React + Vite frontend (port `5173`), Express + TypeScrip
 | Layer    | Tech                                                        |
 | -------- | ----------------------------------------------------------- |
 | Frontend | React 18, Vite, TypeScript, react-router-dom                |
-| Backend  | Express, TypeScript, pg, bcrypt, jsonwebtoken               |
+| Backend  | Express, TypeScript, pg, bcrypt, jsonwebtoken, AWS SQS, Resend |
 | Database | Postgres (any managed instance — RDS, Neon, Supabase, etc.) |
 | Runtime  | Node 20 (alpine) + nginx (alpine) for the SPA               |
 
@@ -18,6 +18,7 @@ todo-app/
 ├── backend/        # Express API
 │   ├── src/
 │   ├── Dockerfile
+│   ├── Dockerfile.worker
 │   ├── .env.example
 │   └── package.json
 └── frontend/       # React + Vite SPA
@@ -32,14 +33,16 @@ todo-app/
 
 All `/todos/*` routes require `Authorization: Bearer <jwt>`.
 
-| Method | Path             | Body                       | Notes                  |
-| ------ | ---------------- | -------------------------- | ---------------------- |
-| POST   | `/auth/signup`   | `{ email, password }`      | Returns `{token,user}` |
-| POST   | `/auth/signin`   | `{ email, password }`      | Returns `{token,user}` |
-| GET    | `/todos`         | —                          | List current user's todos |
-| POST   | `/todos`         | `{ title }`                | Create a todo          |
-| DELETE | `/todos/:id`     | —                          | Delete a todo (must own) |
-| GET    | `/health`        | —                          | Liveness check         |
+| Method | Path                         | Body                  | Notes |
+| ------ | ---------------------------- | --------------------- | ----- |
+| POST   | `/auth/signup`               | `{ email, password }` | Creates an unverified user and queues a verification email |
+| POST   | `/auth/signin`               | `{ email, password }` | Returns `{token,user}` only after the email is verified |
+| POST   | `/auth/resend-verification`  | `{ email }`           | Re-queues a verification email for an unverified account |
+| GET    | `/auth/verify-email?token=`  | —                     | Marks the email as verified |
+| GET    | `/todos`                     | —                     | List current user's todos |
+| POST   | `/todos`                     | `{ title }`           | Create a todo |
+| DELETE | `/todos/:id`                 | —                     | Delete a todo (must own) |
+| GET    | `/health`                    | —                     | Liveness check |
 
 The backend creates its `users` and `todos` tables on boot via `initSchema()` — point `DATABASE_URL` at any reachable Postgres and the schema is ready.
 
@@ -48,9 +51,14 @@ The backend creates its `users` and `todos` tables on boot via `initSchema()` �
 1. Backend:
    ```bash
    cd backend
-   cp .env.example .env       # fill in DATABASE_URL + JWT_SECRET
+   cp .env.example .env       # fill in DATABASE_URL + JWT_SECRET + SQS/Resend vars
    npm install
    npm run dev
+   ```
+   Start the verification worker in another shell:
+   ```bash
+   cd backend
+   npm run worker:dev
    ```
 2. Frontend (in another shell):
    ```bash
@@ -80,7 +88,20 @@ docker run --rm -p 8080:8080 \
   -e DATABASE_URL='postgres://user:pass@host:5432/todos' \
   -e JWT_SECRET='change-me' \
   -e CORS_ORIGIN='http://localhost:5173' \
+  -e EMAIL_VERIFICATION_URL='http://localhost:8080/auth/verify-email' \
+  -e AWS_REGION='us-east-1' \
+  -e AWS_SQS_QUEUE_URL='https://sqs.us-east-1.amazonaws.com/123456789012/todo-email-verification' \
   todo-backend
+
+docker build -t todo-backend-worker -f ./backend/Dockerfile.worker ./backend
+
+docker run --rm \
+  -e AWS_REGION='us-east-1' \
+  -e AWS_SQS_QUEUE_URL='https://sqs.us-east-1.amazonaws.com/123456789012/todo-email-verification' \
+  -e EMAIL_VERIFICATION_URL='http://localhost:8080/auth/verify-email' \
+  -e RESEND_API_KEY='re_xxxxxxxxx' \
+  -e RESEND_FROM_EMAIL='Todo App <onboarding@your-domain.com>' \
+  todo-backend-worker
 
 docker run --rm -p 5173:5173 todo-frontend
 ```
@@ -91,6 +112,8 @@ Both Dockerfiles produce `linux/amd64` images suitable for ECS/Fargate. On Apple
 
 ```bash
 docker buildx build --platform linux/amd64 -t <ecr-repo>/todo-backend:latest ./backend --push
+
+docker buildx build --platform linux/amd64 -t <ecr-repo>/todo-backend-worker:latest -f ./backend/Dockerfile.worker ./backend --push
 
 docker buildx build --platform linux/amd64 \
   --build-arg VITE_API_URL=https://api.your-domain.com \
@@ -106,9 +129,31 @@ docker buildx build --platform linux/amd64 \
   - `JWT_SECRET` — from Secrets Manager (long random string)
   - `PGSSL=true` — required for RDS
   - `CORS_ORIGIN=https://app.your-domain.com`
+  - `EMAIL_VERIFICATION_URL=https://api.your-domain.com/auth/verify-email`
+  - `AWS_REGION=us-east-1`
+  - `AWS_SQS_QUEUE_URL` — SQS queue URL for verification-email jobs
 - **ALB target group**: HTTP, port 8080, health-check path `/health`
 - **Logging**: `awslogs` driver to CloudWatch
+- **IAM permissions**:
+  - `sqs:SendMessage`
 - The container runs as a non-root user and exposes a built-in `HEALTHCHECK`.
+
+### Worker Fargate task
+
+- **Image**: `<ecr-repo>/todo-backend-worker:latest`
+- **Port mapping**: none
+- **Environment variables**:
+  - `AWS_REGION=us-east-1`
+  - `AWS_SQS_QUEUE_URL` — from Secrets Manager or plain env
+  - `EMAIL_VERIFICATION_URL=https://api.your-domain.com/auth/verify-email`
+  - `RESEND_API_KEY` — from Secrets Manager
+  - `RESEND_FROM_EMAIL=Todo App <onboarding@your-domain.com>`
+- **IAM permissions**:
+  - `sqs:ReceiveMessage`
+  - `sqs:DeleteMessage`
+  - `sqs:GetQueueAttributes`
+  - `sqs:ChangeMessageVisibility`
+- **Logging**: `awslogs` driver to CloudWatch
 
 ### Frontend Fargate task
 

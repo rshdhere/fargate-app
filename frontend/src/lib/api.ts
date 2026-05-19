@@ -3,6 +3,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 export interface User {
   id: number;
   email: string;
+  emailVerified?: boolean;
 }
 
 export interface Todo {
@@ -13,6 +14,11 @@ export interface Todo {
 
 export interface AuthResponse {
   token: string;
+  user: User;
+}
+
+export interface SignupResponse {
+  message: string;
   user: User;
 }
 
@@ -59,9 +65,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   signup: (email: string, password: string) =>
-    request<AuthResponse>('/auth/signup', {
+    request<SignupResponse>('/auth/signup', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
+    }),
+  resendVerification: (email: string) =>
+    request<{ message: string }>('/auth/resend-verification', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
     }),
   signin: (email: string, password: string) =>
     request<AuthResponse>('/auth/signin', {

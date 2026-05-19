@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 
 export interface AuthRequest extends Request {
   userId?: number;
+  userEmailVerified?: boolean;
 }
 
 interface JwtPayload {

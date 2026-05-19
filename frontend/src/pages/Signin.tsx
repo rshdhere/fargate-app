@@ -1,10 +1,12 @@
 import { FormEvent, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api, setToken } from '../lib/api';
 
 export function Signin() {
+  const location = useLocation();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const locationState = location.state as { message?: string; email?: string } | null;
+  const [email, setEmail] = useState(locationState?.email ?? '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -45,6 +47,7 @@ export function Signin() {
             required
             autoComplete="current-password"
           />
+          {locationState?.message && <div className="muted">{locationState.message}</div>}
           {error && <div className="error">{error}</div>}
           <button type="submit" disabled={loading}>
             {loading ? 'Signing in…' : 'Sign in'}
